@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Google 登入/註冊系統</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f4f4f4;
+    }
+    .container {
+      text-align: center;
+      padding: 20px;
+      background-color: #fff;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #user-info {
+      margin-top: 20px;
+      text-align: left;
+    }
+    img {
+      display: block;
+      margin: 10px auto;
+      border-radius: 50%;
+    }
+  </style>
+  <script type="module">
+    // 匯入 Firebase 函數
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-analytics.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    // Firebase 配置
+    const firebaseConfig = {
+      apiKey: "AIzaSyCvPB02iarqMqMZMzE35HM6l4UhWy5JQtk",
+      authDomain: "project-7170895385392010872.firebaseapp.com",
+      databaseURL: "https://project-7170895385392010872-default-rtdb.asia-southeast1.firebasedatabase.app/",
+      projectId: "project-7170895385392010872",
+      storageBucket: "project-7170895385392010872.firebasestorage.app",
+      messagingSenderId: "565886425989",
+      appId: "1:565886425989:web:d2688cc2fc370d9b4a82ec",
+      measurementId: "G-5X8THXXF2M"
+    };
+
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const database = getDatabase(app);
+
+    // Google 註冊功能
+    async function googleRegister() {
+      const provider = new GoogleAuthProvider();
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        const uid = user.uid;
+        const { displayName, email, photoURL } = user;
+
+        // 檢查使用者是否已存在
+        const userRef = ref(database, 'users/' + uid);
+        onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            alert("使用者已註冊！");
+          } else {
+            // 存儲新使用者資訊，並將註冊時間設置為當前時間
+            const lastLoginTime = new Date().toISOString();  // 註冊時的時間
+            set(userRef, {
+              displayName,
+              email,
+              photoURL,
+              lastLoginTime  // 記錄註冊時的時間
+            });
+            displayUserInfo({ displayName, email, photoURL, lastLoginTime });
+            alert("註冊成功！");
+          }
+        });
+      } catch (error) {
+        console.error("註冊失敗:", error);
+      }
+    }
+
+    // Google 登入功能
+    async function googleLogin() {
+      const provider = new GoogleAuthProvider();
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        const uid = user.uid;
+
+        // 獲取使用者資訊
+        const userRef = ref(database, 'users/' + uid);
+        onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const { displayName, email, photoURL, lastLoginTime } = snapshot.val();
+            const newLastLoginTime = new Date().toISOString();  // 更新為當前登入時間
+
+            // 更新資料庫中的最後登入時間
+            update(userRef, { lastLoginTime: newLastLoginTime });
+
+            // 顯示使用者資訊並格式化顯示上次登入時間
+            displayUserInfo({
+              displayName,
+              email,
+              photoURL,
+              lastLoginTime: lastLoginTime,  // 顯示的是上次的登入時間
+              newLastLoginTime: newLastLoginTime
+            });
+          } else {
+            alert("使用者未註冊，請先註冊！");
+          }
+        });
+      } catch (error) {
+        console.error("登入失敗:", error);
+      }
+    }
+
+    // 顯示使用者資訊
+    function displayUserInfo(userInfo) {
+      const { displayName, email, photoURL, lastLoginTime, newLastLoginTime } = userInfo;
+
+      // 格式化顯示上次登入時間（UTC轉為本地時間）
+      const localLastLoginTime = new Date(lastLoginTime).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
+      const localNewLastLoginTime = new Date(newLastLoginTime).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
+
+      document.getElementById("user-info").innerHTML = `
+        <p>姓名: ${displayName}</p>
+        <p>Email: ${email}</p>
+        <img src="${photoURL}" alt="Profile Picture" width="100"/>
+        <p>上次登入時間（本地時間）: ${localLastLoginTime}</p>
+        <p>當前登入時間（本地時間）: ${localNewLastLoginTime}</p>
+      `;
+    }
+
+    // 綁定按鈕點擊事件
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("register-button").addEventListener("click", googleRegister);
+      document.getElementById("login-button").addEventListener("click", googleLogin);
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Firebase Google 登入/註冊系統</h1>
+    <button id="register-button">使用 Google 註冊</button>
+    <button id="login-button">使用 Google 登入</button>
+    <div id="user-info"></div>
+  </div>
+</body>
+</html>
